@@ -7,10 +7,13 @@
 (defn exponentially
   "Returns a strategy that causes an exponentially increasing wait before
   retrying. The base wait is measured in seconds."
-  [wait]
+  [wait cap]
   (fn [d]
     (md/let-flow [{:keys [failures] :as ctx} d
-                  delay-ms (mt/seconds (math/expt wait (count failures)))]
+                  base 2
+                  exp-wait (* wait (math/expt base (count failures)))
+                  jittered (min (int (rand cap)) exp-wait)
+                  delay-ms (mt/seconds jittered)]
       (mt/in delay-ms #(md/success-deferred ctx)))))
 
 (defn up-to
@@ -56,7 +59,8 @@
       This will grow exponentially for each attempt.
   stop - an int representing the number of tries that the api should make before
          giving up and returning the last exception encountered.
-
+  cap - The maximum number of milliseconds that one should wait when using
+        exponential backoff.
   Returns a deferred wrapping the results of `f`."
-  [f p stop]
-  (retry f (comp (exponentially p) (up-to stop))))
+  [f p stop cap]
+  (retry f (comp (exponentially p cap) (up-to stop))))

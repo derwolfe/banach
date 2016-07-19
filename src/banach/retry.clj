@@ -12,8 +12,8 @@
     (md/let-flow [{:keys [failures] :as ctx} d
                   base 2
                   exp-wait (* wait (math/expt base (count failures)))
-                  jittered (min (int (rand cap)) exp-wait)
-                  delay-ms (mt/seconds jittered)]
+                  with-jitter (min (int (rand (mt/seconds cap))) exp-wait)
+                  delay-ms (mt/seconds with-jitter)]
       (mt/in delay-ms #(md/success-deferred ctx)))))
 
 (defn up-to

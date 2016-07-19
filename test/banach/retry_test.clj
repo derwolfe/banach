@@ -8,7 +8,7 @@
 (deftest exponentially-tests
   (testing "wait exponentially as failure count increases"
     (let [c (mt/mock-clock)
-          strategy (retry/exponentially 10)
+          strategy (retry/exponentially 10 100)
           delay-is (fn [delay failures]
                      (let [ctx {:failures failures}
                            d (strategy (md/success-deferred ctx))
@@ -18,10 +18,32 @@
                        (is (not (md/realized? d)))
                        (mt/advance c 1)
                        (is (md/realized? d))))]
-      (mt/with-clock c
-        (delay-is 1 [])
-        (delay-is 10 [:a])
-        (delay-is 1000 [:a :b :c])))))
+      (with-redefs [rand (fn [_max] 25)]
+        (mt/with-clock c
+          (delay-is 10 [])
+
+          (delay-is 20 [:a])
+
+          ;; jitter here will use the random value instead of
+          ;; 10 * 2 ^ 3 = 80 seconds
+          (delay-is 25 [:a :b :c])))))
+  (testing "waits the maximum value after cap is reached "
+    (let [c (mt/mock-clock)
+          cap 100
+          strategy (retry/exponentially 10 cap)
+          delay-is (fn [delay failures]
+                     (let [ctx {:failures failures}
+                           d (strategy (md/success-deferred ctx))
+                           delay-ms (mt/seconds delay)]
+                       (is (not (md/realized? d)))
+                       (mt/advance c (dec delay-ms))
+                       (is (not (md/realized? d)))
+                       (mt/advance c 1)
+                       (is (md/realized? d))))]
+      (with-redefs [rand (fn [_max] (* 2 cap))]
+        (mt/with-clock c
+          (delay-is cap [:a :b :c :d]))))))
+
 
 (deftest up-to-tests
   (testing "raises most recent exception when number of tries exceeded"
